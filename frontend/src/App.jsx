@@ -93,6 +93,33 @@ function App() {
 
   const isExceeded = dailyTotal > 24.0;
 
+  // Segmen warna pastel untuk visualisasi bar tracker 24 jam
+  const trackerSegments = useMemo(() => {
+    const study = parseFloat(studyHours) || 0;
+    const extra = parseFloat(extraHours) || 0;
+    const physical = parseFloat(physicalHours) || 0;
+    const denom = Math.max(24, dailyTotal);
+    return [
+      { key: 'study', label: 'Belajar', hours: study, color: '#60a5fa' },
+      { key: 'extra', label: 'Ekskul', hours: extra, color: '#a78bfa' },
+      { key: 'sleep', label: 'Tidur', hours: sleepValue, color: '#818cf8' },
+      { key: 'physical', label: 'Olahraga', hours: physical, color: '#34d399' },
+      { key: 'free', label: 'Santai', hours: freeTime, color: '#e2e8f0' }
+    ].map((seg) => ({
+      ...seg,
+      widthPct: (seg.hours / denom) * 100
+    }));
+  }, [studyHours, extraHours, physicalHours, sleepValue, freeTime, dailyTotal]);
+
+  // Helper warna track slider dinamis mengikuti posisi nilai
+  const getSliderStyle = (val, min, max) => {
+    const num = parseFloat(val) || 0;
+    const pct = Math.min(100, Math.max(0, ((num - min) / (max - min)) * 100));
+    return {
+      background: `linear-gradient(to right, #34a87b 0%, #108962 ${pct}%, #ffffff ${pct}%, #ffffff 100%)`
+    };
+  };
+
   // Eksekusi pemanggilan API prediksi
   const executePredict = async (payload) => {
     setLoading(true);
@@ -184,18 +211,18 @@ function App() {
         return {
           bg: '#ecfdf5',
           border: '#6ee7b7',
-          text: '#047857',
-          barColor: '#10b981',
+          text: '#065f46',
+          barColor: '#34d399',
           label: 'Rendah (Aman)',
           summary: 'Keseimbangan waktu dan pola hidup Anda sangat optimal.',
-          icon: <CheckCircle2 size={32} color="#059669" />
+          icon: <CheckCircle2 size={32} color="#108962" />
         };
       case 'Moderate':
         return {
           bg: '#fffbeb',
           border: '#fde68a',
-          text: '#b45309',
-          barColor: '#f59e0b',
+          text: '#92400e',
+          barColor: '#fbbf24',
           label: 'Sedang (Perlu Perhatian)',
           summary: 'Beban aktivitas mulai menekan waktu istirahat dan relaksasi.',
           icon: <Info size={32} color="#d97706" />
@@ -204,12 +231,12 @@ function App() {
       default:
         return {
           bg: '#fef2f2',
-          border: '#fca5a5',
-          text: '#b91c1c',
-          barColor: '#ef4444',
+          border: '#fecaca',
+          text: '#991b1b',
+          barColor: '#f87171',
           label: 'Tinggi (Berisiko Burnout)',
           summary: 'Tingkat stres tinggi dengan risiko kelelahan fisik & mental berat.',
-          icon: <AlertTriangle size={32} color="#dc2626" />
+          icon: <AlertTriangle size={32} color="#e11d48" />
         };
     }
   };
@@ -312,6 +339,7 @@ function App() {
                         setStudyHours(e.target.value);
                         setActivePreset(null);
                       }}
+                      style={getSliderStyle(studyHours, 0, 16)}
                       className="range-input"
                     />
                   </div>
@@ -351,6 +379,7 @@ function App() {
                         setExtraHours(e.target.value);
                         setActivePreset(null);
                       }}
+                      style={getSliderStyle(extraHours, 0, 12)}
                       className="range-input"
                     />
                   </div>
@@ -420,6 +449,7 @@ function App() {
                         setPhysicalHours(e.target.value);
                         setActivePreset(null);
                       }}
+                      style={getSliderStyle(physicalHours, 0, 8)}
                       className="range-input"
                     />
                   </div>
@@ -469,18 +499,29 @@ function App() {
                   </div>
 
                   <div className="tracker-bar-track">
-                    <div
-                      className="tracker-bar-fill"
-                      style={{
-                        width: `${Math.min((dailyTotal / 24) * 100, 100)}%`,
-                        backgroundColor: isExceeded ? '#ef4444' : dailyTotal > 20 ? '#f59e0b' : '#10b981'
-                      }}
-                    />
+                    {trackerSegments.map((seg) => (
+                      <div
+                        key={seg.key}
+                        className="tracker-bar-segment"
+                        title={`${seg.label}: ${seg.hours} jam`}
+                        style={{
+                          width: `${seg.widthPct}%`,
+                          backgroundColor: isExceeded && seg.key !== 'free' ? '#f87171' : seg.color
+                        }}
+                      />
+                    ))}
                   </div>
 
                   <div className="tracker-footer">
                     <span className="time-stat">
-                      Belajar: <strong>{studyHours}j</strong> • Ekskul: <strong>{extraHours}j</strong> • Tidur: <strong>{sleepValue}j</strong> • Olahraga: <strong>{physicalHours}j</strong>
+                      {trackerSegments
+                        .filter((seg) => seg.key !== 'free')
+                        .map((seg) => (
+                          <span key={seg.key} className="legend-dot-item">
+                            <i className="legend-dot" style={{ backgroundColor: seg.color }} />
+                            {seg.label}: <strong>{seg.hours}j</strong>
+                          </span>
+                        ))}
                     </span>
                     <span className="free-time-stat">
                       Sisa waktu santai: <strong>{freeTime} jam</strong>
@@ -570,7 +611,7 @@ function App() {
                       <Sparkles size={20} className="stat-icon" />
                       <div className="stat-info">
                         <span className="stat-label">Tingkat Akurasi</span>
-                        <span className="stat-val">88.5% (Terbaik)</span>
+                        <span className="stat-val">78.1% (Tuned RF)</span>
                       </div>
                     </div>
                   </div>
@@ -682,7 +723,11 @@ function App() {
                       </div>
                       <ul className="rec-checklist">
                         {prediction.recommendations.map((rec, idx) => (
-                          <li key={idx} className="rec-checklist-item">
+                          <li
+                            key={idx}
+                            className="rec-checklist-item"
+                            style={{ animationDelay: `${idx * 0.06}s` }}
+                          >
                             <ChevronRight size={16} className="rec-bullet-icon" />
                             <span>{rec}</span>
                           </li>
